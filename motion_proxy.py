@@ -5,51 +5,53 @@ Motion Proxy Server
 import BaseHTTPServer
 import urlparse
 import socket
-import sys 
-import os
+import datetime
 
 STREAM_PORT = 8081
 PROXY_PORT = 8002
 host = 'localhost'
 
-def get_image(host, port):
 
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  s.connect((host, int(port)))
+def grab_mjpeg_frame(host, port):
+    """
+    Function is getting one frame from MJPEG stream
+    The base of this code was taken from https://gist.github.com/russss/1143799
+    """
 
-  fh = s.makefile()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host, int(port)))
 
-  # Read in HTTP headers:
-  line = fh.readline()
-  while line.strip() != '': 
-      parts = line.split(':')
-      if len(parts) > 1 and parts[0].lower() == 'content-type':
-          # Extract boundary string from content-type
-          content_type = parts[1].strip()
-          boundary = content_type.split(';')[1].split('=')[1]
-      line = fh.readline()
+    fh = s.makefile()
 
-  if not boundary:
-      raise Exception("Can't find content-type")
+    # Read in HTTP headers:
+    line = fh.readline()
+    while line.strip() != '':
+        parts = line.split(':')
+        if len(parts) > 1 and parts[0].lower() == 'content-type':
+            # Extract boundary string from content-type
+            content_type = parts[1].strip()
+            boundary = content_type.split(';')[1].split('=')[1]
+        line = fh.readline()
 
-  # Seek ahead to the first chunk
-  while line.strip() != boundary:
-      line = fh.readline()
+    if not boundary:
+        return None
 
-  # Read in chunk headers
-  while line.strip() != '': 
-      parts = line.split(':')
-      if len(parts) > 1 and parts[0].lower() == 'content-length':
-          # Grab chunk length
-          length = int(parts[1].strip())
-      line = fh.readline()
+    # Seek ahead to the first chunk
+    while line.strip() != boundary:
+        line = fh.readline()
 
-  image = fh.read(length)
+    # Read in chunk headers
+    while line.strip() != '':
+        parts = line.split(':')
+        if len(parts) > 1 and parts[0].lower() == 'content-length':
+            # Grab chunk length
+            length = int(parts[1].strip())
+        line = fh.readline()
 
-  with open('image.jpg', 'w') as out_fh:
-      out_fh.write(image)
+    image = fh.read(length)
+    s.close()
+    return image
 
-  s.close()
 
 class GetHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     """
@@ -57,46 +59,30 @@ class GetHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     """
 
     def do_GET(self):
-        parsed_path = urlparse.urlparse(self.path)
-#        message_parts = [
-#            'CLIENT VALUES:',
-#            'client_address=%s (%s)' % (self.client_address,
-#            self.address_string()),
-#            'command=%s' % self.command,
-#            'path=%s' % self.path,
-#            'real path=%s' % parsed_path.path,
-#            'query=%s' % parsed_path.query,
-#            'request_version=%s' % self.request_version,
-#            '',
-#            'SERVER VALUES:',
-#            'server_version=%s' % self.server_version,
-#            'sys_version=%s' % self.sys_version,
-#            'protocol_version=%s' % self.protocol_version,
-#            '',
-#            'HEADERS RECEIVED:',
-#        ]
+        # parsed_path = urlparse.urlparse(self.path)
         if self.path.endswith(".jpg"):
             print(self.path)
-            f=open('.'+self.path)
             self.send_response(200)
             self.send_header('Content-type',        'image/jpg')
             self.end_headers()
-            self.wfile.write(f.read())
-            f.close()
+            self.wfile.write(grab_mjpeg_frame(host, STREAM_PORT))
             return
-        else:  
-            get_image(host, STREAM_PORT)
-            message = """     <!DOCTYPE html>
-                     <html>
-                     <body>
-                     <meta charset="utf-8">
-                     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-                     <h2>Гавриловцы</h2>
-                     <img src="image.jpg" alt="Гавриловцы" >
+        else:
+            message = """
+            <!DOCTYPE html>
+               <html>
+               <body>
+                   <meta charset="utf-8">
+                   <meta name="viewport"
+                     content="width=device-width,
+                              initial-scale=1, maximum-scale=1">
+                   <div id="core" align="center">
+                     <h2>%s</h2>
+                     <a href="./"><img src="image.jpg" alt="Motion Server"></a>
+                   </div>
+               </body>
+               </html>""" % datetime.datetime.now().strftime('%c')
 
-                     </body>
-                     </html>"""
-              
             self.send_response(200)
             self.end_headers()
             self.wfile.write(message)
