@@ -10,3 +10,6 @@ where:
 `host:port` - mjpeg stream host address and port
 
 `proxy_port` - port of proxy server
+
+### Acknowledgments
+Part of the code is based on https://gist.github.com/russss/1143799
