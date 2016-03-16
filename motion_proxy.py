@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Motion Proxy Server
+MJPEG Proxy Server
 """
 import BaseHTTPServer
 import urlparse
 import socket
 import datetime
 
+STREAM_HOST = 'localhost'
 STREAM_PORT = 8081
 PROXY_PORT = 8002
-host = 'localhost'
 
 
 def grab_mjpeg_frame(host, port):
@@ -63,9 +63,10 @@ class GetHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         if self.path.endswith(".jpg"):
             print(self.path)
             self.send_response(200)
-            self.send_header('Content-type',        'image/jpg')
+            self.send_header('Content-type', 'image/jpg')
+            self.send_header('Cache-Control', 'no-cache')
             self.end_headers()
-            self.wfile.write(grab_mjpeg_frame(host, STREAM_PORT))
+            self.wfile.write(grab_mjpeg_frame(STREAM_HOST, STREAM_PORT))
             return
         else:
             message = """
@@ -90,6 +91,16 @@ class GetHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     import BaseHTTPServer
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('stream_host_port', metavar = 'host:port',help='MJPEG stream host:port')
+    parser.add_argument('proxy_port', help='proxy port')
+    args = parser.parse_args()
+    STREAM_HOST,STREAM_PORT = args.stream_host_port.split(':')
+    STREAM_PORT = int(STREAM_PORT)
+    PROXY_PORT = int(args.proxy_port)
+
     server = BaseHTTPServer.HTTPServer(('', PROXY_PORT), GetHandler)
-    print('Starting server, use <Ctrl-C> to stop')
+    print('Starting MJPEG proxy server at port %d)'%(PROXY_PORT))
     server.serve_forever()
